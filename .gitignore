@@ -79,3 +79,4 @@ Archive/
 .vscode/
 node_modules/
 */vendors/
+vendors
