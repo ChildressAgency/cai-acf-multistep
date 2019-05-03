@@ -13,6 +13,11 @@ if(!defined('ABSPATH')){ exit; }
 define('CAI_MULTISTEP_PLUGIN_DIR', dirname(__FILE__));
 define('CAI_MULTISTEP_PLUGIN_URL', plugin_dir_url(__FILE__));
 
+/**
+ * Create example post type
+ */
+require_once CAI_MULTISTEP_PLUGIN_DIR . '/classes/class-kickoff-form-post-type.php';
+
 if(!class_exists('CAI_MultiStep')){
   class CAI_MultiStep{
     /**
@@ -28,7 +33,7 @@ if(!class_exists('CAI_MultiStep')){
      * 
      * @var string
      */
-    private $post_type;
+    private $form_post_type;
 
     /**
      * List of form groups used as steps
@@ -43,14 +48,20 @@ if(!class_exists('CAI_MultiStep')){
       $this->load_dependencies();
 
       $this->form_id = 'cai-multistep';
-      $this->post_type = $this->get_form_post_type();
-      $this->step_ids = $this->get_form_steps_ids();
+      $this->form_post_type = $this->get_form_post_type();
+      //$this->step_ids = $this->get_form_steps_ids();
 
-      add_shortcode('cai_mulitstep_form', array($this, 'output_shortcode'));
+      add_shortcode('cai_multistep_form', array($this, 'output_shortcode'));
 
       add_action('acf/init', array($this, 'create_acf_options_page'));
       add_action('init', array($this, 'load_textdomain'));
-      add_action('init', array($this, 'caims_create_post_types'));
+
+      /**
+       * Create example post type
+       */
+      $kickoff_form_post_type = new KickOff_Form_Post_Type();
+
+      add_filter('acf/load_field/key=field_5ccb5995c506e', array($this , 'load_post_type_choices'));
 
       //process ACF form submission
       add_action('acf/save_post', array($this, 'process_acf_form'), 20);
@@ -63,8 +74,7 @@ if(!class_exists('CAI_MultiStep')){
         add_filter('acf/settings/dir', array($this, 'acf_settings_dir'));
       }
 
-      require_once CAI_MULTISTEP_PLUGIN_DIR . '/includes/custom-fields/kickoff-form-settings.php';
-      require_once CAI_MULTISTEP_PLUGIN_DIR . '/includes/caims-create-post-types.php';
+      require_once CAI_MULTISTEP_PLUGIN_DIR . '/includes/custom-fields/cai-acf-multistep-form-settings.php';
     }
 
     public function load_textdomain(){
@@ -83,32 +93,58 @@ if(!class_exists('CAI_MultiStep')){
 
     public function create_acf_options_page(){
       acf_add_options_page(array(
-        'page_title' => esc_html__('KickOff Form Settings', 'caims'),
-        'menu_title' => esc_html__('Kickoff Form Settings', 'caims'),
-        'menu_slug' => 'kickoff-form-settings',
+        'page_title' => esc_html__('CAI ACF MultiStep Form Settings', 'caims'),
+        'menu_title' => esc_html__('CAI ACF MultiStep Form Settings', 'caims'),
+        'menu_slug' => 'cai-acf-multistep-form-settings',
         'capability' => 'edit_posts',
         'redirect' => false
       ));
     }
 
+    public function load_post_type_choices($field){
+      $field['choices'] = array();
+      $available_post_types = get_post_types(array('_builtin' => false), 'objects');
+
+      foreach($available_post_types as $available_post_type){
+        if($available_post_type->name == 'acf-field-group' || $available_post_type->name == 'acf-field'){
+          continue;
+        }
+
+        $field['choices'][$available_post_type->name] = $available_post_type->label;
+      }
+
+      return $field;
+    }
+
     public function get_form_post_type(){
-      $post_type = get_field('form_post_type', 'option');
-      return $post_type;
+      $form_post_type = get_option('options_form_post_type');
+      return $form_post_type;
     }
 
     public function get_form_steps_ids(){
       $form_steps = array();
-      if(have_rows('form_steps_ids', 'option')){
-        while(have_rows('form_steps_ids', 'option')){
-          the_row();
-          $form_steps[] = get_sub_field('form_steps_id');
-        }
+      //if(have_rows('form_steps_ids', 'option')){
+      //  while(have_rows('form_steps_ids', 'option')){
+      //    the_row();
+      //    $form_steps[] = get_sub_field('form_steps_id');
+      //  }
+      //}
+      $groups = acf_get_field_groups(array('post_type' => $this->form_post_type));
+//var_dump($groups);
+      $g = 0;
+      foreach($groups as $group){
+        //var_dump($group);
+        $form_steps[$g] = $group['key'];
+        $g++;
       }
 
       return $form_steps;
     }
 
     public function output_shortcode(){
+      //need to load this late or acf_get_field_groups won't run
+      $this->step_ids = $this->get_form_steps_ids();
+
       //check if user is logged in first
       if(!is_user_logged_in()){
         echo '<p>Please login</p>';
@@ -122,11 +158,11 @@ if(!class_exists('CAI_MultiStep')){
 
       //user is currently filling out the form
       if(!$this->current_multistep_form_is_finished()){
-        $this->output_acf_form(array('post_type' => $this->post_type));
+        $this->output_acf_form(array('post_type' => $this->form_post_type));
       }
       else{
         //form has been filled entirely
-        $form_complete_message = get_field('kickoff_form_complete_message', 'option');
+        $form_complete_message = get_field('form_complete_message', 'option');
         echo apply_filters('the_content', wp_kses_post($form_complete_message));
       }
 
@@ -150,13 +186,13 @@ if(!class_exists('CAI_MultiStep')){
         array(
           'post_id' => $requested_post_id,
           'step' => 'new_post' === $requested_post_id ? 1 : $requested_step,
-          'post_type' => $this->post_type,
+          'post_type' => $this->form_post_type,
           'post_status' => 'publish',
         )
       );
 
       $submit_label = $args['step'] < count($this->step_ids) ? esc_html__('Save and Continue', 'caims') : esc_html__('Finish', 'caims');
-      $current_step_fields = ($args['post_id'] !== 'new_post' && $args['step'] > 1) ? $this->step_ids[(int) $args['step'] - 1] : $this->step_ids[0];
+      $current_step_group = ($args['post_id'] !== 'new_post' && $args['step'] > 1) ? $this->step_ids[(int) $args['step'] - 1] : $this->step_ids[0];
 
       //show the progress bar before the form
       $this->display_progress_bar($args);
@@ -172,7 +208,7 @@ if(!class_exists('CAI_MultiStep')){
             'post_type' => $args['post_type'],
             'post_status' => $args['post_status']
           ),
-          'field_groups' => $current_step_fields,
+          'field_groups' => array($current_step_group),
           'submit_value' => $submit_label,
           'html_after_fields' => $this->output_hidden_fields($args)
         )
@@ -238,7 +274,7 @@ if(!class_exists('CAI_MultiStep')){
      * si the requested post the right one?
      */
     private function requested_post_is_valid(){
-      return (get_post_type((int) $_GET['post_id']) === $this->post_type && get_post_status((int) $_GET['post_id']) === 'publish');
+      return (get_post_type((int) $_GET['post_id']) === $this->form_post_type && get_post_status((int) $_GET['post_id']) === 'publish');
     }
 
     /**
@@ -279,7 +315,7 @@ if(!class_exists('CAI_MultiStep')){
      */
     public function process_acf_form($post_id){
       //don't do anything if in admin or working on different front end acf form
-      if(is_admin() || !isset($_POST['caims-form-id']) || $_POST['caims-form-id'] !== $this->id){
+      if(is_admin() || !isset($_POST['caims-form-id']) || $_POST['caims-form-id'] !== $this->form_id){
         return;
       }
 
@@ -290,7 +326,7 @@ if(!class_exists('CAI_MultiStep')){
         $company_name = get_field('company_name', $post_id);
         wp_update_post(array(
           'ID' => $post_id,
-          'post_type' => $this->post_type,
+          'post_type' => $this->form_post_type,
           'post_title' => esc_html($company_name)
         ));
 
@@ -299,7 +335,7 @@ if(!class_exists('CAI_MultiStep')){
       }
 
       //if not done with the form put post_id and step number in the url
-      if($current_step < count($this->$step_ids)){
+      if($current_step < count($this->step_ids)){
         $query_args = array(
           'step' => ++$current_step,
           'post_id' => $post_id,
@@ -313,7 +349,11 @@ if(!class_exists('CAI_MultiStep')){
         //maybe send an email to someone here
       }
 
+      $redirect_url = add_query_arg($query_args, wp_get_referer());
+      wp_safe_redirect($redirect_url);
       exit();
     }
   } //end class
 } //end class check
+
+new CAI_MultiStep;
