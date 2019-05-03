@@ -121,7 +121,7 @@ if(!class_exists('CAI_MultiStep')){
       if(!function_exists('acf_form')){ return; }
 
       //user is currently filling out the form
-      if(!this->current_multistep_form_is_finished()){
+      if(!$this->current_multistep_form_is_finished()){
         $this->output_acf_form(array('post_type' => $this->post_type));
       }
       else{
@@ -188,7 +188,7 @@ if(!class_exists('CAI_MultiStep')){
     private function output_hidden_fields($args){
       $inputs = array();
       $inputs[] = sprintf('<input type="hidden" name="caims-form-id" value="%1$s" />', $this->form_id);
-      inputs[] = isset($args['step']) ? sprintf('<input type="hidden" name="caims-current-step" value="%1$s" />', $args['step']) : '';
+      $inputs[] = isset($args['step']) ? sprintf('<input type="hidden" name="caims-current-step" value="%1$s" />', $args['step']) : '';
 
       return implode(' ', $inputs);
     }
@@ -303,7 +303,7 @@ if(!class_exists('CAI_MultiStep')){
         $query_args = array(
           'step' => ++$current_step,
           'post_id' => $post_id,
-          'token' = isset($token) ? $token : $_GET['token'];
+          'token' => isset($token) ? $token : $_GET['token']
         );
       }
       else{
