@@ -13,11 +13,6 @@ if(!defined('ABSPATH')){ exit; }
 define('CAI_MULTISTEP_PLUGIN_DIR', dirname(__FILE__));
 define('CAI_MULTISTEP_PLUGIN_URL', plugin_dir_url(__FILE__));
 
-/**
- * Create example post type
- */
-require_once CAI_MULTISTEP_PLUGIN_DIR . '/classes/class-kickoff-form-post-type.php';
-
 if(!class_exists('CAI_MultiStep')){
   class CAI_MultiStep{
     /**
@@ -55,11 +50,6 @@ if(!class_exists('CAI_MultiStep')){
 
       add_action('acf/init', array($this, 'create_acf_options_page'));
       add_action('init', array($this, 'load_textdomain'));
-
-      /**
-       * Create example post type
-       */
-      $kickoff_form_post_type = new KickOff_Form_Post_Type();
 
       add_filter('acf/load_field/key=field_5ccb5995c506e', array($this , 'load_post_type_choices'));
 
