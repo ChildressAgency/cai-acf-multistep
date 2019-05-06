@@ -123,13 +123,6 @@ if(!class_exists('CAI_MultiStep')){
 
     public function get_form_steps_ids(){
       $form_steps = array();
-      //if(have_rows('form_steps_ids', 'option')){
-      //  while(have_rows('form_steps_ids', 'option')){
-      //    the_row();
-      //    $form_steps[] = get_sub_field('form_steps_id');
-      //  }
-      //}
-      //$groups = acf_get_field_groups(array('post_type' => $this->form_post_type));
 
       global $wpdb;
       $groups = $wpdb->get_results($wpdb->prepare("
@@ -138,7 +131,7 @@ if(!class_exists('CAI_MultiStep')){
         WHERE post_type = %s
           AND post_content LIKE '%%%s%%'
         ORDER BY menu_order ASC", 'acf-field-group', $this->form_post_type));
-//var_dump($groups);
+
       $g = 0;
       foreach($groups as $group){
         //var_dump($group);
@@ -150,9 +143,6 @@ if(!class_exists('CAI_MultiStep')){
     }
 
     public function output_shortcode(){
-      //need to load this late or acf_get_field_groups won't run
-      //$this->step_ids = $this->get_form_steps_ids();
-//var_dump($this->step_ids);
       //check if user is logged in first
       if(!is_user_logged_in()){
         echo '<p>Please login</p>';
