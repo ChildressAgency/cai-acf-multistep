@@ -49,7 +49,7 @@ if(!class_exists('CAI_MultiStep')){
 
       $this->form_id = 'cai-multistep';
       $this->form_post_type = $this->get_form_post_type();
-      //$this->step_ids = $this->get_form_steps_ids();
+      $this->step_ids = $this->get_form_steps_ids();
 
       add_shortcode('cai_multistep_form', array($this, 'output_shortcode'));
 
@@ -129,12 +129,20 @@ if(!class_exists('CAI_MultiStep')){
       //    $form_steps[] = get_sub_field('form_steps_id');
       //  }
       //}
-      $groups = acf_get_field_groups(array('post_type' => $this->form_post_type));
+      //$groups = acf_get_field_groups(array('post_type' => $this->form_post_type));
+
+      global $wpdb;
+      $groups = $wpdb->get_results($wpdb->prepare("
+        SELECT post_name
+        FROM wp_posts
+        WHERE post_type = %s
+          AND post_content LIKE '%%%s%%'
+        ORDER BY menu_order ASC", 'acf-field-group', $this->form_post_type));
 //var_dump($groups);
       $g = 0;
       foreach($groups as $group){
         //var_dump($group);
-        $form_steps[$g] = $group['key'];
+        $form_steps[$g] = $group->post_name;
         $g++;
       }
 
@@ -143,8 +151,8 @@ if(!class_exists('CAI_MultiStep')){
 
     public function output_shortcode(){
       //need to load this late or acf_get_field_groups won't run
-      $this->step_ids = $this->get_form_steps_ids();
-
+      //$this->step_ids = $this->get_form_steps_ids();
+//var_dump($this->step_ids);
       //check if user is logged in first
       if(!is_user_logged_in()){
         echo '<p>Please login</p>';
@@ -310,7 +318,7 @@ if(!class_exists('CAI_MultiStep')){
 
     /**
      * process the form
-     * post has been created/updates, now update the progress bar
+     * post has been created/updated, now update the progress bar
      * and redirect user to the next step or finished form
      */
     public function process_acf_form($post_id){
