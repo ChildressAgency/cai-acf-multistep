@@ -135,9 +135,9 @@ if(!class_exists('CAI_MultiStep')){
     public function output_shortcode(){
       //check if user is logged in first
       if(!is_user_logged_in()){
-        echo '<p>Please login</p>';
+        echo apply_filters('the_content', wp_kses_post(get_field('login_message', 'option')));
 
-        return false;
+        return wp_login_form(array('echo' => false));
       }
 
       ob_start();
@@ -273,7 +273,7 @@ if(!class_exists('CAI_MultiStep')){
      */
     private function can_continue_current_form(){
       if(!isset($_GET['token'])){ return false; }
-      if(!is_user_logged_in()){ return false; }
+      //if(!is_user_logged_in()){ return false; }
 
       $allowed = false;
 
