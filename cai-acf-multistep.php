@@ -135,7 +135,8 @@ if(!class_exists('CAI_MultiStep')){
     public function output_shortcode(){
       //check if user is logged in first
       if(!is_user_logged_in()){
-        echo apply_filters('the_content', wp_kses_post(get_field('login_message', 'option')));
+        $login_message = get_field('login_message', 'option');
+        echo apply_filters('the_content', wp_kses_post($login_message));
 
         return wp_login_form(array('echo' => false));
       }
@@ -225,20 +226,43 @@ if(!class_exists('CAI_MultiStep')){
     private function display_progress_bar($args){
       $number_of_steps = count($this->step_ids);
       $current_step = $args['step'];
+      $percent_complete = ($current_step / $number_of_steps) * 100;
 
-      echo '<ul class="list-unstyled">';
-      for($i = 1; $i < $number_of_steps - 1; $i++){
-        echo '<li style="display:inline-block; margin-right:15px;">Step ' . $i . '</li>';
-      }
-      echo '</ul>';
+      echo '<div id="progress-bar">';
+        echo '<h4>Step ' . $current_step . ' of ' . $number_of_steps . '</h4>';
+        echo '<div class="progress">';
+          echo '<div class="progress-bar" role="progressbar" style="width:' . $percent_complete . '%" aria-valuenow="' . $percent_complete . '" aria-valuemin="0" aria-valuemax="100"></div>';
+      echo '</div></div>';
     }
 
     /**
-     * if current $_GET['post_id'] is valid return the id, otherwise create new post
+     * if current $_GET['post_id'] is valid return the id, otherwise see if the user
+     * already has another post. if neither create a new post.
      */
     private function get_requested_post_id(){
-      if(isset($_GET['post_id']) && $this->requested_post_is_valid() && $this->can_continue_current_form()){
-        return (int) $_GET['post_id'];
+      //if(isset($_GET['post_id']) && $this->requested_post_is_valid() && $this->can_continue_current_form()){
+      //  return (int) $_GET['post_id'];
+      //}
+
+      if(isset($_GET['post_id'])){
+        if($this->requested_post_is_valid() && $this->can_continue_current_form() && $this->post_belongs_to_user()){
+          return (int) $_GET['post_id'];
+        }
+      }
+      else{
+        $user_id = get_current_user_id();
+        $user_form_id = new WP_Query(array(
+          'post_type' => $this->form_post_type,
+          'posts_per_page' => 1,
+          'author' => $user_id,
+          'fields' => 'ids'
+        ));
+
+        if(!empty($user_form_id)){
+          $form_post_id = $user_form_id->posts[0];
+          wp_reset_postdata();
+          return $form_post_id;
+        }
       }
 
       return 'new_post';
@@ -275,21 +299,29 @@ if(!class_exists('CAI_MultiStep')){
       if(!isset($_GET['token'])){ return false; }
       //if(!is_user_logged_in()){ return false; }
 
-      $allowed = false;
-
       //check token
       $token_from_url = sanitize_text_field($_GET['token']);
       $token_from_post_meta = get_post_meta((int) $_GET['post_id'], 'secret_token', true);
 
-      //check author
+      if($token_from_url === $token_from_post_meta){
+        return true;
+      }
+
+      return false;
+    }
+
+    /**
+     * does the post belong to the user
+     */
+    private function post_belongs_to_user(){
       $author_id = get_post_field('post_author', $_GET['post_id']);
       $current_user_id = get_current_user_id();
 
-      if(($token_from_url === $token_from_post_meta) && ($author_id == $current_user_id)){
-        $allowed = true;
+      if($author_id == $current_user_id){
+        return true;
       }
 
-      return $allowed;
+      return false;
     }
 
     private function current_multistep_form_is_finished(){
