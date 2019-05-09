@@ -258,7 +258,7 @@ if(!class_exists('CAI_MultiStep')){
           'fields' => 'ids'
         ));
 
-        if(!empty($user_form_id)){
+        if($user_form_id->have_posts()){
           $form_post_id = $user_form_id->posts[0];
           wp_reset_postdata();
           return $form_post_id;
