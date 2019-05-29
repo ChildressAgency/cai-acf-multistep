@@ -117,14 +117,13 @@ if(!class_exists('CAI_MultiStep')){
       global $wpdb;
       $groups = $wpdb->get_results($wpdb->prepare("
         SELECT post_name
-        FROM wp_posts
+        FROM {$wpdb->prefix}posts
         WHERE post_type = %s
           AND post_content LIKE '%%%s%%'
         ORDER BY menu_order ASC", 'acf-field-group', $this->form_post_type));
 
       $g = 0;
       foreach($groups as $group){
-        //var_dump($group);
         $form_steps[$g] = $group->post_name;
         $g++;
       }
@@ -133,34 +132,62 @@ if(!class_exists('CAI_MultiStep')){
     }
 
     public function output_shortcode(){
-      //check if user is logged in first
-      if(!is_user_logged_in()){
-        $login_message = get_field('login_message', 'option');
-        echo apply_filters('the_content', wp_kses_post($login_message));
-
-        return wp_login_form(array('echo' => false));
-      }
-
       ob_start();
 
       if(!function_exists('acf_form')){ return; }
 
-      //user is currently filling out the form
-      if(!$this->current_multistep_form_is_finished()){
-        $this->output_acf_form(array('post_type' => $this->form_post_type));
+      if(allow_save_for_later() && isset(_GET['saveforlater'])){
+        $this->output_finish_later();
       }
       else{
-        //form has been filled entirely
-        $form_complete_message = get_field('form_complete_message', 'option');
-        echo apply_filters('the_content', wp_kses_post($form_complete_message));
+        //user is currently filling out the form
+        if(!$this->current_multistep_form_is_finished()){
+          $this->output_acf_form(array('post_type' => $this->form_post_type));
+        }
+        else{
+          //form has been filled entirely
+          $form_complete_message = get_field('form_complete_message', 'option');
+          echo apply_filters('the_content', wp_kses_post($form_complete_message));
+        }
       }
 
       return ob_get_clean();
     }
 
+    private function allow_save_for_later(){
+      if(get_option('options_allow_save_for_later') === true){
+        return true;
+      }
+
+      return false;
+    }
+
+    private function output_finish_later(){
+      $saveforlater_query_args = array(
+        'step' => $_GET['step'],
+        'post_id' => $_GET['post_id'],
+        'token' => $_GET['token']
+      );
+
+      $saveforlater_url = add_query_arg($saveforlater_query_args, wp_get_referer());
+
+      $saveforlater_message = get_option('options_save_for_later_message');
+
+      echo '<a href="' . $saveforlater_url . '" class="caims-save-for-later-link">' . $saveforlater_url . '</a>';
+
+      $nonce = wp_create_nonce('email_form_link_' . $saveforlater_query_args['token']);
+      echo '<div class="caims-email-form-link">
+              <h4>' . esc_html__('Enter your email address to send the link by email.', 'caims') . '</h4>
+              <div class="caims-email-form">
+                <label for="caims_email_form_email_address" class="sr-only">' . esc_html__('Email Address', 'caims') . '</label>
+                <input type="email" id="caims_email_form_email_address" class="caims-input-email" placeholder="' . esc_html__('Email Address', 'caims') . '" required />
+                <button class="caims-email-form-submit" data-nonce="' . $nonce . '" data-step="'  $saveforlater_query_args['step'] . '" data-post_id="' . $saveforlater_query_args['post_id'] . '" data-token="' . $saveforlater_query_args['token'] . '">' . esc_html__('Send Link', 'caims')  . '</button>
+                <p class="caims-email-response"></p>
+              </div>
+            </div>';
+    }
+
     /**
-     * Output the acf frontend form if logged in,
-     * otherwise show login/register
      * Requires 'acf_form_head()' in the header of the theme
      */
     private function output_acf_form($args = []){
@@ -214,6 +241,20 @@ if(!class_exists('CAI_MultiStep')){
       $inputs = array();
       $inputs[] = sprintf('<input type="hidden" name="caims-form-id" value="%1$s" />', $this->form_id);
       $inputs[] = isset($args['step']) ? sprintf('<input type="hidden" name="caims-current-step" value="%1$s" />', $args['step']) : '';
+
+      if($this->get_requested_step() != 1){
+        $inputs[] = '<input type="button" id="caims-previous" name="previous" class="caims-pager-btn caims-pager-btn-prev caims-submit" value="' . esc_html__('Previous', 'caims') . '" />';
+      }
+
+      if($args['step'] < count($this->step_ids)){
+        $inputs[] = '<input type="button" id="caims-next" name="next" class="caims-pager-btn caims-page-btn-next caims-submit" value="' . esc_html__('Next', 'caims') . '" />';
+      }
+      else{
+        $inputs[] = '<input type="button" id="caims-finish" name="finish" class="caims-pager-btn caims-page-btn-finish caims=submit" value="' . esc_html__('Finish', 'ciams') . '" />';
+      }
+
+      $inputs[] = '<input type="button" id="caims-finish-later" name="saveforlater" class="caims-pager-btn caims-pager-btn-submit caims-submit" value="' esc_html__('Finish Later', 'caims') . '" />';
+      $inputs[] = '<input type="hidden" id="caims-direction" name="direction" value="" />';
 
       return implode(' ', $inputs);
     }
